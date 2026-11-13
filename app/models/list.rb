@@ -271,8 +271,8 @@ class List < ApplicationRecord
     response = PublicHttp.get(url)
     return unless response.success?
     update!(url: response.url)
-    # TODO avoid duplicates
-  rescue ActiveRecord::RecordInvalid => e
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
+    # e.g. the repository was renamed or moved to a url another list already tracks
     Rails.logger.info "Duplicate url #{url}"
     Rails.logger.info e.class
     destroy

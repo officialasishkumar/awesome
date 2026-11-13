@@ -102,6 +102,22 @@ class ListSyncTest < ActionDispatch::IntegrationTest
     assert_nil @list.last_sync_attempt_at
   end
 
+  test 'a list that redirects to a URL another list already tracks is removed' do
+    existing = create(:list, url: 'https://github.com/new-owner/awesome')
+    existing_join = create(:list_project, list: existing)
+    duplicate_join = create(:list_project, list: @list)
+    stub_request(:get, @list.url).to_return(status: 301, headers: { 'Location' => 'https://github.com/New-Owner/awesome' })
+    stub_request(:get, 'https://github.com/New-Owner/awesome').to_return(status: 200)
+
+    SyncListWorker.new.perform(@list.id)
+
+    assert_not List.exists?(@list.id)
+    assert_not ListProject.exists?(duplicate_join.id)
+    assert_equal 'https://github.com/new-owner/awesome', existing.reload.url
+    assert ListProject.exists?(existing_join.id)
+    assert_not_requested :get, %r{\Ahttps://repos.ecosyste.ms/api/v1/repositories/lookup}
+  end
+
   test 'sync preserves current joins when the README fetch fails' do
     join = create(:list_project, list: @list, project: create(:project, last_synced_at: Time.current))
     @list.update!(readme: "- [Existing](#{join.project.url})\n", projects_count: 1)

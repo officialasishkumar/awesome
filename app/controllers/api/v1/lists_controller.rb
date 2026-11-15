@@ -56,11 +56,9 @@ class Api::V1::ListsController < Api::V1::ApplicationController
 
   def lookup
     raise ActionController::BadRequest.new('URL is required') unless params[:url].present?
-    @list = List.find_by(url: params[:url].downcase)
-    if @list.nil?
-      @list = List.create(url: params[:url].downcase)
-      @list.sync_async
-    end
+    url = params[:url].downcase.chomp('/')
+    @list = List.find_or_create_by(url: url)
+    raise ActionController::BadRequest.new('URL is invalid') unless @list.persisted?
     @list.sync_async if @list.last_synced_at.nil? || @list.last_synced_at < 1.day.ago
     fresh_when(@list, public: true)
   end

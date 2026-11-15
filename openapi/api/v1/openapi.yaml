@@ -389,7 +389,7 @@ paths:
                   $ref: '#/components/schemas/ListProject'
   /lists/lookup:
     get:
-      description: Look up a list by URL. If no list exists for the URL, one is created and a sync is enqueued, so the response may not include repository data yet. A sync is also enqueued for a list that hasn't been synced in the last day. Unlike `GET /lists`, lists that aren't displayable are returned too.
+      description: Look up a list by URL. If no list exists for the URL, one is created and a sync is enqueued, so the response may not include repository data yet. A sync is also enqueued for a list that hasn't been synced in the last day. A trailing slash is removed from the URL, and URLs that still aren't valid list URLs return 400. Unlike `GET /lists`, lists that aren't displayable are returned too.
       operationId: lookupList
       tags:
         - lists

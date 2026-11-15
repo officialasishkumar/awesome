@@ -12,6 +12,19 @@ class Api::V1::ProjectsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  teardown do
+    SyncProjectWorker.clear
+  end
+
+  test 'lookup enqueues a single sync for a new project' do
+    get lookup_api_v1_projects_path, params: { url: 'https://github.com/example/new-project' }
+
+    assert_response :success
+    project = Project.find_by!(url: 'https://github.com/example/new-project')
+    assert_equal project.id, response.parsed_body['id']
+    assert_equal [[project.id]], SyncProjectWorker.jobs.map { |job| job['args'] }
+  end
+
   test 'lookup ignores integer funding metadata' do
     @repository_project.update!(repository: { 'metadata' => { 'funding' => 123 } })
 

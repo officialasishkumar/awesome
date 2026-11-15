@@ -13,6 +13,10 @@ class Api::V1::ListsControllerTest < ActionDispatch::IntegrationTest
         )
     end
 
+    teardown do
+        SyncListWorker.clear
+    end
+
     test 'renders index' do
         get api_v1_lists_url
         assert_response :success
@@ -98,6 +102,36 @@ class Api::V1::ListsControllerTest < ActionDispatch::IntegrationTest
     test 'lookup returns bad request without url' do
         get lookup_api_v1_lists_url
         assert_response :bad_request
+    end
+
+    test 'lookup enqueues a single sync for a new list' do
+        get lookup_api_v1_lists_url, params: { url: 'https://github.com/new/list' }
+        assert_response :success
+        list = List.find_by!(url: 'https://github.com/new/list')
+        assert_equal list.id, response.parsed_body['id']
+        assert_equal [[list.id]], SyncListWorker.jobs.map { |job| job['args'] }
+    end
+
+    test 'lookup removes a trailing slash from the url' do
+        get lookup_api_v1_lists_url, params: { url: "#{@list.url}/" }
+        assert_response :success
+        assert_equal @list.id, response.parsed_body['id']
+
+        assert_difference 'List.count', 1 do
+            get lookup_api_v1_lists_url, params: { url: 'https://github.com/New/List/' }
+        end
+        assert_response :success
+        assert_equal 'https://github.com/new/list', response.parsed_body['url']
+    end
+
+    test 'lookup rejects invalid urls without creating or syncing a list' do
+        ['https://github.com/new/list//', '/'].each do |url|
+            assert_no_difference 'List.count' do
+                get lookup_api_v1_lists_url, params: { url: url }
+            end
+            assert_response :bad_request
+        end
+        assert_empty SyncListWorker.jobs
     end
 
     test 'numeric project redirects preserve filters and pagination' do
